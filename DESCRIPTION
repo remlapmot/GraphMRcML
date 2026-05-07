@@ -1,11 +1,26 @@
 Package: GraphMRcML
 Type: Package
-Title: What the Package Does (Title Case)
+Title: Causal Network Inference via Mendelian Randomization with cML and Network Deconvolution
 Version: 0.1.0
-Author: Who wrote it
-Maintainer: The package maintainer <yourself@somewhere.net>
-Description: More about what it does (maybe more than one line)
-    Use four spaces when indenting paragraphs within the Description.
-License: What license is it under?
+Authors@R: c(
+    person("Zhaotong", "Lin", role = c("aut", "cre"),
+           email = "lin00374@umn.edu"),
+    person("Haoran", "Xue", role = "aut"),
+    person("Wei", "Pan", role = "aut"))
+Description: Combines Mendelian randomization (constrained maximum likelihood,
+    cML) and network deconvolution for inference of causal networks from GWAS
+    summary data, as described in Lin, Xue, and Pan (2023)
+    <doi:10.1371/journal.pgen.1010762>.
+License: GPL (>= 3)
+URL: https://github.com/ZhaotongL/GraphMRcML,
+    https://mrcieu.r-universe.dev/GraphMRcML
 Encoding: UTF-8
 LazyData: true
+Imports:
+    dplyr,
+    grDevices,
+    igraph,
+    MASS,
+    pbmcapply,
+    stats
+Config/roxygen2/version: 8.0.0
