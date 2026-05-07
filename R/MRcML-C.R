@@ -1,3 +1,4 @@
+#' @export
 loglik <- function(b_exp,b_out,se_exp,se_out,
                    b_t,theta_t,r_vec_t,rho,t=0){
   l = -1/(2*(1-rho^2)) * sum((
@@ -11,6 +12,7 @@ loglik <- function(b_exp,b_out,se_exp,se_out,
   
 
 
+#' @export
 cML_estimate_O <- function(b_exp,b_out,
                          se_exp,se_out,
                          K,initial_theta = 0,
@@ -74,6 +76,7 @@ cML_estimate_O <- function(b_exp,b_out,
   
 }
 
+#' @export
 cML_SdTheta_O <- function(b_exp,b_out,
                         se_exp,se_out,
                         theta,b_vec,r_vec,rho,t)
@@ -146,6 +149,8 @@ cML_SdTheta_O <- function(b_exp,b_out,
 }
 
 
+#' @export
+#' @importFrom stats runif rnorm
 cML_estimate_random_O <- function(b_exp, b_out,
                                 se_exp, se_out,
                                 K,random_start = 0,
@@ -212,6 +217,8 @@ cML_estimate_random_O <- function(b_exp, b_out,
   )
 }
 
+#' @export
+#' @importFrom stats pnorm
 mr_cML_O <- function(b_exp,b_out,
                    se_exp,se_out,
                    K_vec = 0:(length(b_exp) - 2),
@@ -283,6 +290,8 @@ mr_cML_O <- function(b_exp,b_out,
 }
 
 
+#' @export
+#' @importFrom stats pnorm sd
 mr_cML_DP_O <- function(b_exp,b_out,
                       se_exp,se_out,
                       K_vec = 0:(length(b_exp) - 2),
