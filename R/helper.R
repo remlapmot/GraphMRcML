@@ -1,12 +1,6 @@
-library(data.table)
-library(dplyr)
-library(stringr)
-library(shiny)
-library(igraph)
-library(ggplot2)
-
-
 # dp_list is a list of all your data perturbation result
+#' @export
+#' @importFrom stats cor pnorm sd
 subset_Graph_d1 <- function(dp_list,keep_trait,B=2000,check=TRUE,show=TRUE,maxit=10000){
   set.seed(721)
   keep_trait_id = is.element(dp_list$trait_vec,keep_trait)
@@ -108,6 +102,8 @@ subset_Graph_d1 <- function(dp_list,keep_trait,B=2000,check=TRUE,show=TRUE,maxit
 # G_mean and G_pval are matrices output from subset_Graph_d1(), e.g. obs_graph_mean and obs_graph_pval, or dir_graph_mean and dir_graph_pval
 # Me is the number of effective tests output from subset_Graph_d1(), significance threshold is by default 0.05/Me 
 # thres1 is the secondary p-value threshold with light-colored edges
+#' @export
+#' @importFrom grDevices rgb
 plot_graph <- function(G_mean,G_pval,Me,thres1=0.05,Bonferroni=FALSE){
   set.seed(1)
   if(Bonferroni==FALSE & !is.null(Me)){
@@ -127,19 +123,19 @@ plot_graph <- function(G_mean,G_pval,Me,thres1=0.05,Bonferroni=FALSE){
   A2 = G_pval
   A2[!A1] = 0
   diag(A2) = 0
-  p2 = graph_from_adjacency_matrix(adjmatrix=A2,mode='directed',weighted=T)
-  p = graph_from_adjacency_matrix(adjmatrix=A,mode='directed',weighted=T)
-  E(p)$color <- ifelse(E(p)$weight<0,rgb(178,34,34,1,max=255),rgb(79,201,120,1,max=255))
-  E(p)$color <- dplyr::case_when(
-    E(p)$weight<0 & E(p2)$weight<thres ~ rgb(178,34,34,255,max=255),
-    E(p)$weight<0 & E(p2)$weight<thres1 ~ rgb(178,34,34,100,max=255),
-    E(p)$weight>0 & E(p2)$weight<thres ~ rgb(79,201,120,255,max=255),
-    E(p)$weight>0 & E(p2)$weight<thres1 ~ rgb(79,201,120,100,max=255))
-  E(p)$weight <- 1
-  edge_width = dplyr::case_when(E(p2)$weight<thres ~ 3,
-#                                E(p2)$weight<thres2 ~ 2,
-                                E(p2)$weight<thres1 ~ 1)
-  V(p)$color <- ifelse(V(p)$name %in% c("CAD","Stroke","T2D","Asthma","AD","AF"),'lightblue','orange') 
+  p2 = igraph::graph_from_adjacency_matrix(adjmatrix=A2,mode='directed',weighted=T)
+  p = igraph::graph_from_adjacency_matrix(adjmatrix=A,mode='directed',weighted=T)
+  igraph::E(p)$color <- ifelse(igraph::E(p)$weight<0,rgb(178,34,34,1,max=255),rgb(79,201,120,1,max=255))
+  igraph::E(p)$color <- dplyr::case_when(
+    igraph::E(p)$weight<0 & igraph::E(p2)$weight<thres ~ rgb(178,34,34,255,max=255),
+    igraph::E(p)$weight<0 & igraph::E(p2)$weight<thres1 ~ rgb(178,34,34,100,max=255),
+    igraph::E(p)$weight>0 & igraph::E(p2)$weight<thres ~ rgb(79,201,120,255,max=255),
+    igraph::E(p)$weight>0 & igraph::E(p2)$weight<thres1 ~ rgb(79,201,120,100,max=255))
+  igraph::E(p)$weight <- 1
+  edge_width = dplyr::case_when(igraph::E(p2)$weight<thres ~ 3,
+#                                igraph::E(p2)$weight<thres2 ~ 2,
+                                igraph::E(p2)$weight<thres1 ~ 1)
+  igraph::V(p)$color <- ifelse(igraph::V(p)$name %in% c("CAD","Stroke","T2D","Asthma","AD","AF"),'lightblue','orange')
   # lightblue color for disease nodes, and orange for risk factor nodes
   return(list(p=p,edge_width=edge_width))
 }
