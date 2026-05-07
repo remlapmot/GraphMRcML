@@ -1,4 +1,25 @@
-# dp_list is a list of all your data perturbation result
+#' Summarise GraphMRcML perturbation results for a subset of traits
+#'
+#' Subsets the per-perturbation graphs from `Graph_Perturb` to a chosen set of
+#' traits, iteratively re-runs network deconvolution to enforce zero diagonals
+#' on the direct-effect graph, drops replicates whose deconvolved graph has a
+#' spectral radius above one, and returns means, standard deviations and
+#' p-values for both the observed-effect and direct-effect graphs together
+#' with an effective number of tests `Me`.
+#'
+#' @param dp_list A list as returned by `Graph_Perturb`.
+#' @param keep_trait Character vector of trait names to retain.
+#' @param B Integer; number of perturbation replicates to sample (without
+#'   replacement) from `dp_list`.
+#' @param check Logical; if `TRUE`, drop replicates whose direct-effect graph
+#'   has a spectral radius greater than one.
+#' @param show Logical; if `FALSE` and every replicate fails the spectral
+#'   check, the direct-effect summaries are returned as `NULL`.
+#' @param maxit Integer; maximum iterations of the diagonal-zeroing loop in
+#'   network deconvolution.
+#'
+#' @return A list with `dp_res` (summaries), `dp_list` (filtered per-replicate
+#'   graphs), `warning`, `warn_len`, `conv_len` and `total_B`.
 #' @export
 #' @importFrom stats cor pnorm sd
 subset_Graph_d1 <- function(dp_list,keep_trait,B=2000,check=TRUE,show=TRUE,maxit=10000){
@@ -99,9 +120,27 @@ subset_Graph_d1 <- function(dp_list,keep_trait,B=2000,check=TRUE,show=TRUE,maxit
   return(list(dp_res=dp_res,dp_list=dp_list,warning=warning,warn_len=warn_len,conv_len=conv_len,total_B=total_B))
 }
 
-# G_mean and G_pval are matrices output from subset_Graph_d1(), e.g. obs_graph_mean and obs_graph_pval, or dir_graph_mean and dir_graph_pval
-# Me is the number of effective tests output from subset_Graph_d1(), significance threshold is by default 0.05/Me 
-# thres1 is the secondary p-value threshold with light-colored edges
+#' Build an igraph object for a GraphMRcML summary graph
+#'
+#' Turns a GraphMRcML mean-effect matrix and matching p-value matrix into a
+#' directed `igraph` graph, colouring edges by sign and significance and
+#' suggesting per-edge widths. By default, edges with p-value below
+#' `0.05 / Me` are drawn in solid colour; edges with p-value below `thres1`
+#' are drawn in a lighter shade.
+#'
+#' @param G_mean Numeric matrix of mean effects, e.g. `obs_graph_mean` or
+#'   `dir_graph_mean` from `subset_Graph_d1`.
+#' @param G_pval Numeric matrix of p-values matching `G_mean`.
+#' @param Me Integer; effective number of tests from `subset_Graph_d1`. Used
+#'   to set the primary significance threshold `0.05 / Me` when
+#'   `Bonferroni = FALSE`.
+#' @param thres1 Numeric; secondary p-value threshold for light-coloured
+#'   edges. Set to `0` to suppress.
+#' @param Bonferroni Logical; if `TRUE` (or `Me` is `NULL`), use the
+#'   Bonferroni threshold `0.05 / (N^2 - N)` instead.
+#'
+#' @return A list with `p` (an `igraph` graph) and `edge_width` (a numeric
+#'   vector of suggested edge widths).
 #' @export
 #' @importFrom grDevices rgb
 plot_graph <- function(G_mean,G_pval,Me,thres1=0.05,Bonferroni=FALSE){
@@ -125,12 +164,12 @@ plot_graph <- function(G_mean,G_pval,Me,thres1=0.05,Bonferroni=FALSE){
   diag(A2) = 0
   p2 = igraph::graph_from_adjacency_matrix(adjmatrix=A2,mode='directed',weighted=T)
   p = igraph::graph_from_adjacency_matrix(adjmatrix=A,mode='directed',weighted=T)
-  igraph::E(p)$color <- ifelse(igraph::E(p)$weight<0,rgb(178,34,34,1,max=255),rgb(79,201,120,1,max=255))
+  igraph::E(p)$color <- ifelse(igraph::E(p)$weight<0,rgb(178,34,34,1,maxColorValue=255),rgb(79,201,120,1,maxColorValue=255))
   igraph::E(p)$color <- dplyr::case_when(
-    igraph::E(p)$weight<0 & igraph::E(p2)$weight<thres ~ rgb(178,34,34,255,max=255),
-    igraph::E(p)$weight<0 & igraph::E(p2)$weight<thres1 ~ rgb(178,34,34,100,max=255),
-    igraph::E(p)$weight>0 & igraph::E(p2)$weight<thres ~ rgb(79,201,120,255,max=255),
-    igraph::E(p)$weight>0 & igraph::E(p2)$weight<thres1 ~ rgb(79,201,120,100,max=255))
+    igraph::E(p)$weight<0 & igraph::E(p2)$weight<thres ~ rgb(178,34,34,255,maxColorValue=255),
+    igraph::E(p)$weight<0 & igraph::E(p2)$weight<thres1 ~ rgb(178,34,34,100,maxColorValue=255),
+    igraph::E(p)$weight>0 & igraph::E(p2)$weight<thres ~ rgb(79,201,120,255,maxColorValue=255),
+    igraph::E(p)$weight>0 & igraph::E(p2)$weight<thres1 ~ rgb(79,201,120,100,maxColorValue=255))
   igraph::E(p)$weight <- 1
   edge_width = dplyr::case_when(igraph::E(p2)$weight<thres ~ 3,
 #                                igraph::E(p2)$weight<thres2 ~ 2,

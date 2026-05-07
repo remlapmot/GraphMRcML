@@ -1,3 +1,29 @@
+#' Screen instruments and prepare LD-aware perturbation matrices
+#'
+#' For each pair of traits, restricts the candidate IV set to SNPs that are
+#' GWAS-significant for the exposure (and not more strongly associated with
+#' the outcome), and pre-computes the LD-block square-root matrices used to
+#' generate joint perturbations of the GWAS estimates. Optionally inflates the
+#' standard errors using LDSC-style factors.
+#'
+#' @param b_mat Numeric matrix of GWAS effect estimates with one column per
+#'   trait. Row names must be SNP rsids.
+#' @param se_mat Numeric matrix of standard errors matching `b_mat`.
+#' @param n_vec Integer vector of GWAS sample sizes (one per trait).
+#' @param IV_list List of length `N*(N-1)/2` giving candidate IV rsids for
+#'   each trait pair, in order `(1,2), (1,3), ..., (N-1,N)`.
+#' @param R_list List of LD blocks. Each element has `R` (an LD correlation
+#'   matrix with rsid row/column names) and `snp` (the rsids in the block).
+#' @param rho_mat `N x N` correlation matrix between GWAS estimates across
+#'   traits (e.g. from bivariate LDSC).
+#' @param c_vec Numeric vector of inflation factors (length `N`) applied as
+#'   `sqrt(max(1, c))` to each trait's standard errors.
+#' @param sig.cutoff Numeric; GWAS-significance threshold for instrument
+#'   selection.
+#'
+#' @return A list with the per-pair screened IV indices (`IJ_snp_list`), the
+#'   per-block perturbation square-root matrices (`DP_mat_list`) and the
+#'   (possibly inflated) `b_mat` and `se_mat`.
 #' @export
 #' @importFrom stats pnorm
 Graph_Screen <- function(b_mat,se_mat,n_vec,IV_list,R_list,rho_mat,c_vec=rep(1,length(n_vec)),sig.cutoff=5e-08){
@@ -78,6 +104,23 @@ Graph_Screen <- function(b_mat,se_mat,n_vec,IV_list,R_list,rho_mat,c_vec=rep(1,l
   return(out)
 }
 
+#' Generate one LD-aware perturbed copy of the GWAS estimates
+#'
+#' Adds correlated Gaussian noise to `b_mat` using the per-block square-root
+#' matrices from `Graph_Screen`, preserving cross-trait correlation and
+#' within-block LD.
+#'
+#' @param b_mat Numeric matrix of GWAS effect estimates (rows = SNPs,
+#'   columns = traits).
+#' @param se_mat Numeric matrix of standard errors matching `b_mat`.
+#' @param n_vec Integer vector of GWAS sample sizes (one per trait).
+#' @param rho_mat `N x N` correlation matrix between GWAS estimates across
+#'   traits.
+#' @param DP_mat_list List of LD-block perturbation matrices produced by
+#'   `Graph_Screen`.
+#'
+#' @return A numeric matrix of the same shape as `b_mat` containing the
+#'   perturbed effect estimates.
 #' @export
 #' @importFrom stats rnorm
 Generate_Perturb <- function(b_mat,se_mat,n_vec,rho_mat,DP_mat_list){
@@ -97,6 +140,27 @@ Generate_Perturb <- function(b_mat,se_mat,n_vec,rho_mat,DP_mat_list){
   return(b_mat_dp)
 }
 
+#' Estimate the pairwise causal-effect graph
+#'
+#' For every pair of traits `(i, j)`, runs `mr_cML_O` in both directions using
+#' the screened IV indices, fills in the corresponding off-diagonal entries of
+#' the observed-effect graph, and applies network deconvolution to obtain the
+#' direct-effect graph.
+#'
+#' @param b_mat Numeric matrix of GWAS effect estimates (rows = SNPs,
+#'   columns = traits).
+#' @param se_mat Numeric matrix of standard errors matching `b_mat`.
+#' @param n_vec Integer vector of GWAS sample sizes (one per trait).
+#' @param rho_mat `N x N` correlation matrix between GWAS estimates across
+#'   traits.
+#' @param IJ_snp_list Per-pair list of screened IV indices, as returned by
+#'   `Graph_Screen`.
+#' @param t Instrument-selection threshold on the z-scale, passed through to
+#'   `mr_cML_O`.
+#' @param random_start Integer; number of random starts per cML fit.
+#'
+#' @return A list with `obs_graph`, `obs_graph_se`, `obs_graph_pval` and the
+#'   network-deconvolved `dir_graph`.
 #' @export
 Graph_Estimate <- function(b_mat,se_mat,n_vec,rho_mat,IJ_snp_list,t,random_start=10){
   n_trait = length(n_vec)
@@ -146,6 +210,35 @@ Graph_Estimate <- function(b_mat,se_mat,n_vec,rho_mat,IJ_snp_list,t,random_start
 
 }
 
+#' GraphMRcML with data perturbation
+#'
+#' Top-level routine: screens IVs once via `Graph_Screen`, then repeatedly
+#' generates LD-aware perturbed datasets and fits the pairwise causal-effect
+#' graph on each one. Perturbation replicates are run in parallel via
+#' [pbmcapply::pbmclapply()].
+#'
+#' @param b_mat Numeric matrix of GWAS effect estimates (rows = SNPs,
+#'   columns = traits). Row names must be SNP rsids.
+#' @param se_mat Numeric matrix of standard errors matching `b_mat`.
+#' @param n_vec Integer vector of GWAS sample sizes (one per trait).
+#' @param rho_mat `N x N` correlation matrix between GWAS estimates across
+#'   traits.
+#' @param IV_list List of length `N*(N-1)/2` giving candidate IV rsids for
+#'   each trait pair.
+#' @param R_list List of LD blocks (see `Graph_Screen`).
+#' @param c_vec Numeric vector of LDSC inflation factors (length `N`).
+#' @param sig.cutoff Numeric; GWAS-significance threshold for instrument
+#'   selection.
+#' @param num_pert Integer; number of data-perturbation replicates.
+#' @param random_start Integer; number of random starts per cML fit.
+#' @param seed Integer; RNG seed.
+#' @param trait_vec Optional character vector of trait names; defaults to
+#'   `colnames(b_mat)`.
+#' @param curse Logical; if `TRUE`, applies the "curse-of-winner" correction
+#'   by setting the cML threshold to `-qnorm(sig.cutoff/2)`.
+#'
+#' @return A list of per-perturbation observed graphs, their standard errors
+#'   and p-values, the deconvolved direct-effect graphs, and `trait_vec`.
 #' @export
 #' @importFrom stats qnorm
 Graph_Perturb <- function(b_mat,se_mat,n_vec,rho_mat,IV_list,R_list,c_vec=rep(1,length(n_vec)),

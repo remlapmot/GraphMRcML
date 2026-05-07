@@ -1,3 +1,23 @@
+#' Profile log-likelihood for the cML model
+#'
+#' Computes the (profile) log-likelihood used by the constrained maximum
+#' likelihood (cML) estimator for two-sample Mendelian randomization with
+#' overlapping samples.
+#'
+#' @param b_exp Numeric vector of SNP-exposure effect estimates.
+#' @param b_out Numeric vector of SNP-outcome effect estimates.
+#' @param se_exp Numeric vector of standard errors for `b_exp`.
+#' @param se_out Numeric vector of standard errors for `b_out`.
+#' @param b_t Numeric vector of true SNP-exposure effects (length matching
+#'   `b_exp`).
+#' @param theta_t Numeric scalar; candidate causal effect.
+#' @param r_vec_t Numeric vector of invalid-IV pleiotropic effects.
+#' @param rho Numeric scalar; correlation between `b_exp` and `b_out` due to
+#'   sample overlap.
+#' @param t Numeric scalar; significance threshold (on the z-scale) used for
+#'   instrument selection. Defaults to `0`.
+#'
+#' @return A numeric scalar giving the log-likelihood value.
 #' @export
 loglik <- function(b_exp,b_out,se_exp,se_out,
                    b_t,theta_t,r_vec_t,rho,t=0){
@@ -12,6 +32,27 @@ loglik <- function(b_exp,b_out,se_exp,se_out,
   
 
 
+#' Constrained maximum likelihood estimate (single start)
+#'
+#' Coordinate-descent estimation of the causal effect under the cML model with
+#' a fixed number of invalid IVs.
+#'
+#' @param b_exp Numeric vector of SNP-exposure effect estimates.
+#' @param b_out Numeric vector of SNP-outcome effect estimates.
+#' @param se_exp Numeric vector of standard errors for `b_exp`.
+#' @param se_out Numeric vector of standard errors for `b_out`.
+#' @param K Integer; number of invalid IVs to allow.
+#' @param initial_theta Numeric; starting value for the causal effect.
+#' @param initial_mu Numeric vector; starting values for the SNP-exposure
+#'   effects (length matching `b_exp`).
+#' @param maxit Integer; maximum number of coordinate-descent iterations.
+#' @param rho Numeric; correlation between `b_exp` and `b_out` due to sample
+#'   overlap.
+#' @param t Numeric; instrument-selection threshold on the z-scale.
+#'
+#' @return A list with elements `theta` (estimated causal effect), `b_vec`
+#'   (estimated true SNP-exposure effects) and `r_vec` (estimated invalid-IV
+#'   effects).
 #' @export
 cML_estimate_O <- function(b_exp,b_out,
                          se_exp,se_out,
@@ -76,6 +117,24 @@ cML_estimate_O <- function(b_exp,b_out,
   
 }
 
+#' Standard error of the cML causal-effect estimate
+#'
+#' Computes model-based and robust (sandwich) standard errors for both the
+#' constrained MLE and the profile MLE of the causal effect.
+#'
+#' @param b_exp Numeric vector of SNP-exposure effect estimates.
+#' @param b_out Numeric vector of SNP-outcome effect estimates.
+#' @param se_exp Numeric vector of standard errors for `b_exp`.
+#' @param se_out Numeric vector of standard errors for `b_out`.
+#' @param theta Estimated causal effect from `cML_estimate_O`.
+#' @param b_vec Estimated true SNP-exposure effects from `cML_estimate_O`.
+#' @param r_vec Estimated invalid-IV effects from `cML_estimate_O`.
+#' @param rho Correlation between `b_exp` and `b_out` due to sample overlap.
+#' @param t Instrument-selection threshold on the z-scale.
+#'
+#' @return A list with elements `cMLE_se`, `cMLE_robust_se`, `MPLE_se` and
+#'   `MPLE_robust_se` (any of which may be `NaN` if the corresponding variance
+#'   is non-positive or non-invertible).
 #' @export
 cML_SdTheta_O <- function(b_exp,b_out,
                         se_exp,se_out,
@@ -149,6 +208,26 @@ cML_SdTheta_O <- function(b_exp,b_out,
 }
 
 
+#' Constrained MLE with random restarts
+#'
+#' Runs `cML_estimate_O` from one or more random starting points and returns
+#' the solution achieving the smallest negative log-likelihood.
+#'
+#' @param b_exp Numeric vector of SNP-exposure effect estimates.
+#' @param b_out Numeric vector of SNP-outcome effect estimates.
+#' @param se_exp Numeric vector of standard errors for `b_exp`.
+#' @param se_out Numeric vector of standard errors for `b_out`.
+#' @param K Integer; number of invalid IVs to allow.
+#' @param random_start Integer; number of additional random starts (in
+#'   addition to the default zero start).
+#' @param maxit Integer; maximum number of coordinate-descent iterations.
+#' @param rho Correlation between `b_exp` and `b_out` due to sample overlap.
+#' @param t Instrument-selection threshold on the z-scale.
+#' @param var_est Integer in `1:4` selecting the variance estimator returned by
+#'   `cML_SdTheta_O`: `1` cMLE, `2` cMLE robust, `3` MPLE, `4` MPLE robust.
+#'
+#' @return A list with elements `theta`, `se`, `l` (negative log-likelihood)
+#'   and `r_est` (invalid-IV indicator vector).
 #' @export
 #' @importFrom stats runif rnorm
 cML_estimate_random_O <- function(b_exp, b_out,
@@ -217,6 +296,29 @@ cML_estimate_random_O <- function(b_exp, b_out,
   )
 }
 
+#' Mendelian randomization via cML with BIC selection
+#'
+#' Runs the cML estimator across a grid of candidate values for the number of
+#' invalid IVs and combines the results with BIC and BIC model averaging
+#' (cML-BIC and cML-MA-BIC).
+#'
+#' @param b_exp Numeric vector of SNP-exposure effect estimates.
+#' @param b_out Numeric vector of SNP-outcome effect estimates.
+#' @param se_exp Numeric vector of standard errors for `b_exp`.
+#' @param se_out Numeric vector of standard errors for `b_out`.
+#' @param K_vec Integer vector; candidate numbers of invalid IVs.
+#' @param random_start Integer; number of random starts per `K`.
+#' @param maxit Integer; maximum coordinate-descent iterations.
+#' @param random_seed Integer; if non-zero, used to seed the RNG.
+#' @param n Integer; GWAS sample size used in the BIC penalty.
+#' @param rho Correlation between `b_exp` and `b_out` due to sample overlap.
+#' @param t Instrument-selection threshold on the z-scale.
+#' @param var_est Integer in `1:4` selecting the variance estimator (see
+#'   `cML_estimate_random_O`).
+#'
+#' @return A list with cML-MA-BIC and cML-BIC point estimates, standard
+#'   errors and p-values, the indices of the selected invalid IVs, and the
+#'   negative log-likelihood and BIC sequences over `K_vec`.
 #' @export
 #' @importFrom stats pnorm
 mr_cML_O <- function(b_exp,b_out,
@@ -290,6 +392,31 @@ mr_cML_O <- function(b_exp,b_out,
 }
 
 
+#' MR-cML with data perturbation
+#'
+#' Runs `mr_cML_O` and supplements the result with data-perturbation (DP)
+#' standard errors and p-values that account for selection of the invalid-IV
+#' set.
+#'
+#' @param b_exp Numeric vector of SNP-exposure effect estimates.
+#' @param b_out Numeric vector of SNP-outcome effect estimates.
+#' @param se_exp Numeric vector of standard errors for `b_exp`.
+#' @param se_out Numeric vector of standard errors for `b_out`.
+#' @param K_vec Integer vector; candidate numbers of invalid IVs.
+#' @param random_start Integer; number of random starts on the original data.
+#' @param random_start_pert Integer; number of random starts per perturbed
+#'   dataset.
+#' @param maxit Integer; maximum coordinate-descent iterations.
+#' @param num_pert Integer; number of data-perturbation replicates.
+#' @param random_seed Integer; if non-zero, used to seed the RNG.
+#' @param n Integer; GWAS sample size used in the BIC penalty.
+#' @param rho Correlation between `b_exp` and `b_out` due to sample overlap.
+#' @param c1,c2 Numeric inflation factors (>= 1) applied to `se_exp` and
+#'   `se_out` respectively.
+#' @param t Instrument-selection threshold on the z-scale.
+#'
+#' @return A list combining the original `mr_cML_O` output with the DP point
+#'   estimates, standard errors and p-values for both cML-BIC and cML-MA-BIC.
 #' @export
 #' @importFrom stats pnorm sd
 mr_cML_DP_O <- function(b_exp,b_out,
