@@ -1,3 +1,5 @@
+#' @export
+#' @importFrom stats pnorm
 Graph_Screen <- function(b_mat,se_mat,n_vec,IV_list,R_list,rho_mat,c_vec=rep(1,length(n_vec)),sig.cutoff=5e-08){
   n_trait = length(n_vec)
   N_combination = n_trait * (n_trait - 1) / 2
@@ -76,6 +78,8 @@ Graph_Screen <- function(b_mat,se_mat,n_vec,IV_list,R_list,rho_mat,c_vec=rep(1,l
   return(out)
 }
 
+#' @export
+#' @importFrom stats rnorm
 Generate_Perturb <- function(b_mat,se_mat,n_vec,rho_mat,DP_mat_list){
   n_trait = length(n_vec)
   m_used = nrow(b_mat)
@@ -93,6 +97,7 @@ Generate_Perturb <- function(b_mat,se_mat,n_vec,rho_mat,DP_mat_list){
   return(b_mat_dp)
 }
 
+#' @export
 Graph_Estimate <- function(b_mat,se_mat,n_vec,rho_mat,IJ_snp_list,t,random_start=10){
   n_trait = length(n_vec)
   obs_graph = matrix(0,nrow=n_trait,ncol=n_trait)
@@ -141,6 +146,8 @@ Graph_Estimate <- function(b_mat,se_mat,n_vec,rho_mat,IJ_snp_list,t,random_start
 
 }
 
+#' @export
+#' @importFrom stats qnorm
 Graph_Perturb <- function(b_mat,se_mat,n_vec,rho_mat,IV_list,R_list,c_vec=rep(1,length(n_vec)),
                           sig.cutoff=5e-08,num_pert=100,random_start=10,seed=0,trait_vec=NULL,curse=F){
     set.seed(seed)
